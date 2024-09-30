@@ -82,7 +82,7 @@ pub(crate) struct FlushGuard(SyncCell<tracing_chrome::FlushGuard>);
 ///     logging to `stdout`.
 /// * Using [`android_log-sys`](https://crates.io/crates/android_log-sys) on Android,
 ///     logging to Android logs.
-/// * Using [`tracing-wasm`](https://crates.io/crates/tracing-wasm) in Wasm, logging
+/// * Using [`wasm-tracing`](https://crates.io/crates/wasm-tracing) in Wasm, logging
 ///     to the browser console.
 ///
 /// You can configure this plugin.
@@ -280,8 +280,8 @@ impl Plugin for LogPlugin {
 
         #[cfg(target_arch = "wasm32")]
         {
-            finished_subscriber = subscriber.with(tracing_wasm::WASMLayer::new(
-                tracing_wasm::WASMLayerConfig::default(),
+            finished_subscriber = subscriber.with(wasm_tracing::WASMLayer::new(
+                wasm_tracing::WASMLayerConfig::default(),
             ));
         }
 
