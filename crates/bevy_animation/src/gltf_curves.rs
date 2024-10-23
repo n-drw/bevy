@@ -5,7 +5,8 @@ use bevy_math::{
     vec4, Quat, Vec4, VectorSpace,
 };
 use bevy_reflect::Reflect;
-use thiserror::Error;
+use derive_more::derive::{Display, Error, From};
+use either::Either;
 
 /// A keyframe-defined curve that "interpolates" by stepping at `t = 1.0` to the next keyframe.
 #[derive(Debug, Clone, Reflect)]
@@ -23,9 +24,14 @@ where
     }
 
     #[inline]
-    fn sample_unchecked(&self, t: f32) -> T {
+    fn sample_clamped(&self, t: f32) -> T {
         self.core
             .sample_with(t, |x, y, t| if t >= 1.0 { y.clone() } else { x.clone() })
+    }
+
+    #[inline]
+    fn sample_unchecked(&self, t: f32) -> T {
+        self.sample_clamped(t)
     }
 }
 
@@ -57,7 +63,7 @@ where
     }
 
     #[inline]
-    fn sample_unchecked(&self, t: f32) -> V {
+    fn sample_clamped(&self, t: f32) -> V {
         match self.core.sample_interp_timed(t) {
             // In all the cases where only one frame matters, defer to the position within it.
             InterpolationDatum::Exact((_, v))
@@ -68,6 +74,11 @@ where
                 cubic_spline_interpolation(u[1], u[2], v[0], v[1], s, t1 - t0)
             }
         }
+    }
+
+    #[inline]
+    fn sample_unchecked(&self, t: f32) -> V {
+        self.sample_clamped(t)
     }
 }
 
@@ -112,7 +123,7 @@ impl Curve<Quat> for CubicRotationCurve {
     }
 
     #[inline]
-    fn sample_unchecked(&self, t: f32) -> Quat {
+    fn sample_clamped(&self, t: f32) -> Quat {
         let vec = match self.core.sample_interp_timed(t) {
             // In all the cases where only one frame matters, defer to the position within it.
             InterpolationDatum::Exact((_, v))
@@ -124,6 +135,11 @@ impl Curve<Quat> for CubicRotationCurve {
             }
         };
         Quat::from_vec4(vec.normalize())
+    }
+
+    #[inline]
+    fn sample_unchecked(&self, t: f32) -> Quat {
+        self.sample_clamped(t)
     }
 }
 
@@ -170,17 +186,22 @@ where
     }
 
     #[inline]
-    fn sample_iter_unchecked(&self, t: f32) -> impl Iterator<Item = T> {
+    fn sample_iter_clamped(&self, t: f32) -> impl Iterator<Item = T> {
         match self.core.sample_interp(t) {
             InterpolationDatum::Exact(v)
             | InterpolationDatum::LeftTail(v)
-            | InterpolationDatum::RightTail(v) => TwoIterators::Left(v.iter().copied()),
+            | InterpolationDatum::RightTail(v) => Either::Left(v.iter().copied()),
 
             InterpolationDatum::Between(u, v, s) => {
                 let interpolated = u.iter().zip(v.iter()).map(move |(x, y)| x.lerp(*y, s));
-                TwoIterators::Right(interpolated)
+                Either::Right(interpolated)
             }
         }
+    }
+
+    #[inline]
+    fn sample_iter_unchecked(&self, t: f32) -> impl Iterator<Item = T> {
+        self.sample_iter_clamped(t)
     }
 }
 
@@ -219,20 +240,25 @@ where
     }
 
     #[inline]
-    fn sample_iter_unchecked(&self, t: f32) -> impl Iterator<Item = T> {
+    fn sample_iter_clamped(&self, t: f32) -> impl Iterator<Item = T> {
         match self.core.sample_interp(t) {
             InterpolationDatum::Exact(v)
             | InterpolationDatum::LeftTail(v)
-            | InterpolationDatum::RightTail(v) => TwoIterators::Left(v.iter().cloned()),
+            | InterpolationDatum::RightTail(v) => Either::Left(v.iter().cloned()),
 
             InterpolationDatum::Between(u, v, s) => {
                 let interpolated =
                     u.iter()
                         .zip(v.iter())
                         .map(move |(x, y)| if s >= 1.0 { y.clone() } else { x.clone() });
-                TwoIterators::Right(interpolated)
+                Either::Right(interpolated)
             }
         }
+    }
+
+    #[inline]
+    fn sample_iter_unchecked(&self, t: f32) -> impl Iterator<Item = T> {
+        self.sample_iter_clamped(t)
     }
 }
 
@@ -269,7 +295,7 @@ where
         self.core.domain()
     }
 
-    fn sample_iter_unchecked(&self, t: f32) -> impl Iterator<Item = T> {
+    fn sample_iter_clamped(&self, t: f32) -> impl Iterator<Item = T> {
         match self.core.sample_interp_timed(t) {
             InterpolationDatum::Exact((_, v))
             | InterpolationDatum::LeftTail((_, v))
@@ -277,31 +303,35 @@ where
                 // Pick out the part of this that actually represents the position (instead of tangents),
                 // which is the middle third.
                 let width = self.core.width();
-                TwoIterators::Left(v[width..(width * 2)].iter().copied())
+                Either::Left(v[width..(width * 2)].iter().copied())
             }
 
-            InterpolationDatum::Between((t0, u), (t1, v), s) => TwoIterators::Right(
+            InterpolationDatum::Between((t0, u), (t1, v), s) => Either::Right(
                 cubic_spline_interpolate_slices(self.core.width() / 3, u, v, s, t1 - t0),
             ),
         }
     }
+
+    #[inline]
+    fn sample_iter_unchecked(&self, t: f32) -> impl Iterator<Item = T> {
+        self.sample_iter_clamped(t)
+    }
 }
 
 /// An error indicating that a multisampling keyframe curve could not be constructed.
-#[derive(Debug, Error)]
-#[error("unable to construct a curve using this data")]
+#[derive(Debug, Error, Display, From)]
+#[display("unable to construct a curve using this data")]
 pub enum WideKeyframeCurveError {
     /// The number of given values was not divisible by a multiple of the number of keyframes.
-    #[error("number of values ({values_given}) is not divisible by {divisor}")]
+    #[display("number of values ({values_given}) is not divisible by {divisor}")]
     LengthMismatch {
         /// The number of values given.
         values_given: usize,
         /// The number that `values_given` was supposed to be divisible by.
         divisor: usize,
     },
-
     /// An error was returned by the internal core constructor.
-    CoreError(#[from] ChunkedUnevenCoreError),
+    CoreError(ChunkedUnevenCoreError),
 }
 
 impl<T> WideCubicKeyframeCurve<T> {
@@ -362,26 +392,6 @@ pub enum WeightsCurve {
 //---------//
 // HELPERS //
 //---------//
-
-enum TwoIterators<A, B> {
-    Left(A),
-    Right(B),
-}
-
-impl<A, B, T> Iterator for TwoIterators<A, B>
-where
-    A: Iterator<Item = T>,
-    B: Iterator<Item = T>,
-{
-    type Item = T;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        match self {
-            TwoIterators::Left(a) => a.next(),
-            TwoIterators::Right(b) => b.next(),
-        }
-    }
-}
 
 /// Helper function for cubic spline interpolation.
 fn cubic_spline_interpolation<T>(

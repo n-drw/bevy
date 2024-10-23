@@ -15,7 +15,7 @@ use crate::{
 use bevy_ptr::{OwningPtr, Ptr};
 use bevy_utils::{HashMap, HashSet};
 use core::{any::TypeId, marker::PhantomData, mem::MaybeUninit};
-use thiserror::Error;
+use derive_more::derive::{Display, Error};
 
 use super::{unsafe_world_cell::UnsafeEntityCell, Ref, ON_REMOVE, ON_REPLACE};
 
@@ -1558,6 +1558,20 @@ impl<'w> EntityWorldMut<'w> {
         self
     }
 
+    /// Removes all components in the [`Bundle`] and remove all required components for each component in the bundle
+    pub fn remove_with_requires<T: Bundle>(&mut self) -> &mut Self {
+        let storages = &mut self.world.storages;
+        let components = &mut self.world.components;
+        let bundles = &mut self.world.bundles;
+
+        let bundle_id = bundles.register_contributed_bundle_info::<T>(components, storages);
+
+        // SAFETY: the dynamic `BundleInfo` is initialized above
+        self.location = unsafe { self.remove_bundle(bundle_id) };
+
+        self
+    }
+
     /// Removes any components except those in the [`Bundle`] (and its Required Components) from the entity.
     ///
     /// See [`EntityCommands::retain`](crate::system::EntityCommands::retain) for more details.
@@ -2760,12 +2774,16 @@ impl<'a> From<&'a mut EntityWorldMut<'_>> for FilteredEntityMut<'a> {
     }
 }
 
-#[derive(Error, Debug)]
+#[derive(Error, Display, Debug)]
 pub enum TryFromFilteredError {
-    #[error("Conversion failed, filtered entity ref does not have read access to all components")]
+    #[display(
+        "Conversion failed, filtered entity ref does not have read access to all components"
+    )]
     MissingReadAllAccess,
 
-    #[error("Conversion failed, filtered entity ref does not have write access to all components")]
+    #[display(
+        "Conversion failed, filtered entity ref does not have write access to all components"
+    )]
     MissingWriteAllAccess,
 }
 
