@@ -121,7 +121,7 @@ pub struct OitResolvePipelineId(pub CachedRenderPipelineId);
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct OitResolvePipelineKey {
     hdr: bool,
-    layer_count: u8,
+    layer_count: i32,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -208,6 +208,7 @@ fn specialize_oit_resolve_pipeline(
         depth_stencil: None,
         multisample: MultisampleState::default(),
         push_constant_ranges: vec![],
+        zero_initialize_workgroup_memory: false,
     }
 }
 
