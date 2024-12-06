@@ -18,6 +18,7 @@ use bevy_ecs::{
     query::ROQueryItem,
     system::{lifetimeless::*, SystemParamItem, SystemState},
 };
+use bevy_image::{BevyDefault, Image, ImageSampler, TextureFormatPixelInfo};
 use bevy_math::{Affine3A, FloatOrd, Quat, Rect, Vec2, Vec4};
 use bevy_render::sync_world::MainEntity;
 use bevy_render::view::RenderVisibleEntities;
@@ -33,10 +34,7 @@ use bevy_render::{
     },
     renderer::{RenderDevice, RenderQueue},
     sync_world::{RenderEntity, TemporaryRenderEntity},
-    texture::{
-        BevyDefault, DefaultImageSampler, FallbackImage, GpuImage, Image, ImageSampler,
-        TextureFormatPixelInfo,
-    },
+    texture::{DefaultImageSampler, FallbackImage, GpuImage},
     view::{
         ExtractedView, Msaa, ViewTarget, ViewUniform, ViewUniformOffset, ViewUniforms,
         ViewVisibility,
@@ -579,7 +577,7 @@ pub fn queue_sprites(
                 sort_key,
                 // batch_range and dynamic_offset will be calculated in prepare_sprites
                 batch_range: 0..0,
-                extra_index: PhaseItemExtraIndex::NONE,
+                extra_index: PhaseItemExtraIndex::None,
             });
         }
     }

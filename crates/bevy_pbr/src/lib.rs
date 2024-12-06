@@ -34,6 +34,7 @@ mod light;
 mod light_probe;
 mod lightmap;
 mod material;
+mod material_bind_groups;
 mod mesh_material;
 mod parallax;
 mod pbr_material;
@@ -42,6 +43,8 @@ mod render;
 mod ssao;
 mod ssr;
 mod volumetric_fog;
+
+use crate::material_bind_groups::FallbackBindlessResources;
 
 use bevy_color::{Color, LinearRgba};
 use core::marker::PhantomData;
@@ -116,6 +119,7 @@ use bevy_app::prelude::*;
 use bevy_asset::{load_internal_asset, AssetApp, Assets, Handle};
 use bevy_core_pipeline::core_3d::graph::{Core3d, Node3d};
 use bevy_ecs::prelude::*;
+use bevy_image::Image;
 use bevy_render::{
     alpha::AlphaMode,
     camera::{
@@ -128,10 +132,11 @@ use bevy_render::{
     render_graph::RenderGraph,
     render_resource::Shader,
     sync_component::SyncComponentPlugin,
-    texture::{GpuImage, Image},
+    texture::GpuImage,
     view::{check_visibility, VisibilitySystems},
     ExtractSchedule, Render, RenderApp, RenderSet,
 };
+
 use bevy_transform::TransformSystem;
 
 pub const PBR_TYPES_SHADER_HANDLE: Handle<Shader> = Handle::weak_from_u128(1708015359337029744);
@@ -379,7 +384,8 @@ impl Plugin for PbrPlugin {
                         .in_set(SimulationLightSystems::AssignLightsToClusters)
                         .after(TransformSystem::TransformPropagate)
                         .after(VisibilitySystems::CheckVisibility)
-                        .after(CameraUpdateSystem),
+                        .after(CameraUpdateSystem)
+                        .ambiguous_with(VisibilitySystems::VisibilityChangeDetect),
                     clear_directional_light_cascades
                         .in_set(SimulationLightSystems::UpdateDirectionalLightCascades)
                         .after(TransformSystem::TransformPropagate)
@@ -393,7 +399,8 @@ impl Plugin for PbrPlugin {
                         // We assume that no entity will be both a directional light and a spot light,
                         // so these systems will run independently of one another.
                         // FIXME: Add an archetype invariant for this https://github.com/bevyengine/bevy/issues/1481.
-                        .ambiguous_with(update_spot_light_frusta),
+                        .ambiguous_with(update_spot_light_frusta)
+                        .ambiguous_with(VisibilitySystems::VisibilityChangeDetect),
                     update_point_light_frusta
                         .in_set(SimulationLightSystems::UpdateLightFrusta)
                         .after(TransformSystem::TransformPropagate)
@@ -414,7 +421,8 @@ impl Plugin for PbrPlugin {
                         // NOTE: This MUST be scheduled AFTER the core renderer visibility check
                         // because that resets entity `ViewVisibility` for the first view
                         // which would override any results from this otherwise
-                        .after(VisibilitySystems::CheckVisibility),
+                        .after(VisibilitySystems::CheckVisibility)
+                        .ambiguous_with(VisibilitySystems::VisibilityChangeDetect),
                 ),
             );
 
@@ -472,7 +480,8 @@ impl Plugin for PbrPlugin {
         // Extract the required data from the main world
         render_app
             .init_resource::<ShadowSamplers>()
-            .init_resource::<GlobalClusterableObjectMeta>();
+            .init_resource::<GlobalClusterableObjectMeta>()
+            .init_resource::<FallbackBindlessResources>();
     }
 }
 

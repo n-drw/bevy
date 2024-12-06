@@ -1,27 +1,27 @@
 use bevy_asset::AssetId;
+use bevy_image::{Image, TextureFormatPixelInfo};
 use bevy_math::{URect, UVec2};
 use bevy_render::{
     render_asset::RenderAssetUsages,
     render_resource::{Extent3d, TextureDimension, TextureFormat},
-    texture::{Image, TextureFormatPixelInfo},
 };
 use bevy_utils::{
     tracing::{debug, error, warn},
     HashMap,
 };
-use derive_more::derive::{Display, Error};
 use rectangle_pack::{
     contains_smallest_box, pack_rects, volume_heuristic, GroupedRectsToPlace, PackedLocation,
     RectToInsert, TargetBin,
 };
+use thiserror::Error;
 
 use crate::{TextureAtlasLayout, TextureAtlasSources};
 
-#[derive(Debug, Error, Display)]
+#[derive(Debug, Error)]
 pub enum TextureAtlasBuilderError {
-    #[display("could not pack textures into an atlas within the given bounds")]
+    #[error("could not pack textures into an atlas within the given bounds")]
     NotEnoughSpace,
-    #[display("added a texture with the wrong format in an atlas")]
+    #[error("added a texture with the wrong format in an atlas")]
     WrongFormat,
 }
 
@@ -179,6 +179,7 @@ impl<'a> TextureAtlasBuilder<'a> {
     /// # use bevy_ecs::prelude::*;
     /// # use bevy_asset::*;
     /// # use bevy_render::prelude::*;
+    /// # use bevy_image::Image;
     ///
     /// fn my_system(mut commands: Commands, mut textures: ResMut<Assets<Image>>, mut layouts: ResMut<Assets<TextureAtlasLayout>>) {
     ///     // Declare your builder

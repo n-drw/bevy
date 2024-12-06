@@ -11,6 +11,7 @@ use bevy_ecs::{
         *,
     },
 };
+use bevy_image::{BevyDefault, Image};
 use bevy_math::{FloatOrd, Mat4, Rect, Vec2, Vec4Swizzles};
 use bevy_render::sync_world::MainEntity;
 use bevy_render::{
@@ -19,7 +20,7 @@ use bevy_render::{
     render_resource::{binding_types::uniform_buffer, *},
     renderer::{RenderDevice, RenderQueue},
     sync_world::{RenderEntity, TemporaryRenderEntity},
-    texture::{BevyDefault, GpuImage, Image, TRANSPARENT_IMAGE_HANDLE},
+    texture::{GpuImage, TRANSPARENT_IMAGE_HANDLE},
     view::*,
     Extract, ExtractSchedule, Render, RenderSet,
 };
@@ -236,6 +237,7 @@ pub struct ExtractedUiTextureSlice {
     pub image_scale_mode: SpriteImageMode,
     pub flip_x: bool,
     pub flip_y: bool,
+    pub inverse_scale_factor: f32,
     pub main_entity: MainEntity,
 }
 
@@ -330,6 +332,7 @@ pub fn extract_ui_texture_slices(
                 atlas_rect,
                 flip_x: image.flip_x,
                 flip_y: image.flip_y,
+                inverse_scale_factor: uinode.inverse_scale_factor,
                 main_entity: entity.into(),
             },
         );
@@ -370,7 +373,7 @@ pub fn queue_ui_slices(
                 entity.index(),
             ),
             batch_range: 0..0,
-            extra_index: PhaseItemExtraIndex::NONE,
+            extra_index: PhaseItemExtraIndex::None,
         });
     }
 }
@@ -607,7 +610,7 @@ pub fn prepare_ui_slices(
 
                     let [slices, border, repeat] = compute_texture_slices(
                         image_size,
-                        uinode_rect.size(),
+                        uinode_rect.size() * texture_slices.inverse_scale_factor,
                         &texture_slices.image_scale_mode,
                     );
 
